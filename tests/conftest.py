@@ -219,6 +219,8 @@ def strategy(
     keeper,
     vault,
     gov,
+    healthCheck,
+    strategist_ms,
     strategy_name,
     trade_factory,
     ymechs_safe
@@ -230,6 +232,8 @@ def strategy(
         strategy_name
 
     )
+    # max profit 1%
+    healthCheck.setStrategyLimits(strategy, 1_000, 1, {'from': strategist_ms})
     trade_factory.grantRole(
         trade_factory.STRATEGY(), strategy, {
             "from": ymechs_safe, "gas_price": "0 gwei"}

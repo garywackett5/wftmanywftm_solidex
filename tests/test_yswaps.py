@@ -18,6 +18,10 @@ def test_yswap(
     chain,
     accounts,
     solidex_router,
+    strategy,
+    token,
+    whale,
+    vault,
     interface,
     spooky_router,
     trade_factory,
@@ -26,11 +30,7 @@ def test_yswap(
     multicall_swapper,
     strategist_ms
 ):
-    strategy = liveBooStrat
-    vault = Contract(strategy.vault())
-    token = Contract(vault.token())
 
-    print(token)
     print("CallOnlyOptimizationRequired(): ", eth_utils.to_hex(
         eth_utils.function_signature_to_4byte_selector("CallOnlyOptimizationRequired()")))
     print("InvalidSwapper(): ", eth_utils.to_hex(
@@ -61,7 +61,15 @@ def test_yswap(
     # trade_factory.addSwappers([multicall_swapper], {"from": ymechs_safe})
     # strategy.updateTradeFactory(trade_factory, {'from': gov})
 
-    vault_before = token.balanceOf(vault)
+    startingWhale = token.balanceOf(whale)
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(amount, {"from": whale})
+    strategy.harvest({"from": strategist})
+    # simulate 12 hours of earnings
+    chain.sleep(43200)
+    chain.mine(1)
+
+    vault_before = strategy.estimatedTotalAssets()
     strat_before = token.balanceOf(strategy)
 
     strategy.harvest({"from": strategist})
@@ -93,7 +101,7 @@ def test_yswap(
     a = a + t[0]
     b = b + t[1]
 
-    path = [token_in.address, wftm, token_out.address]
+    path = [token_in.address, wftm]
     calldata = spooky_router.swapExactTokensForTokens.encode_input(
         amount_in, 0, path, receiver, 2 ** 256 - 1
     )
@@ -151,24 +159,12 @@ def test_yswap(
     expectedOut = solidex_router.getAmountsOut(amount_in, path)[1]
 
     calldata = solidex_router.swapExactTokensForTokens.encode_input(
-        amount_in, 0, path, multicall_swapper, 2 ** 256 - 1
+        amount_in, 0, path, receiver, 2 ** 256 - 1
     )
     t = createTx(solidex_router, calldata)
     a = a + t[0]
     b = b + t[1]
 
-    calldata = wftm.approve.encode_input(spooky_router, expectedOut)
-    t = createTx(wftm, calldata)
-    a = a + t[0]
-    b = b + t[1]
-
-    path = [wftm, token_out.address]
-    calldata = spooky_router.swapExactTokensForTokens.encode_input(
-        expectedOut, 0, path, receiver, 2 ** 256 - 1
-    )
-    t = createTx(spooky_router, calldata)
-    a = a + t[0]
-    b = b + t[1]
     transaction = encode_abi_packed(a, b)
 
     trade_factory.execute['tuple,address,bytes'](asyncTradeExecutionDetails,
@@ -184,7 +180,8 @@ def test_yswap(
     print('profit: ', tx.events["Harvested"]["profit"]/1e18)
     assert tx.events["Harvested"]["profit"] > 0
 
-    #print("apr = ", (365*2*tx.events["Harvested"]["profit"]) / vault_after)
+    print("apr = ", 100 *
+          (365*2*tx.events["Harvested"]["profit"]) / vault_before, "%")
 
 
 def createTx(to, data):
