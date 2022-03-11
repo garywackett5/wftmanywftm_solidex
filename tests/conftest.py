@@ -57,13 +57,13 @@ def mim():
 
 
 @pytest.fixture(scope="module")
-def boo():
-    yield Contract("0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE")
+def wftm():
+    yield Contract("0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83")
 
 
 @pytest.fixture(scope="module")
-def xboo():
-    yield Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+def anyWftm():
+    yield Contract("0x6362496Bef53458b20548a35A2101214Ee2BE3e0")
 
 
 @pytest.fixture(scope="module")
@@ -73,15 +73,15 @@ def lpdepositer():
 
 # Define relevant tokens and contracts in this section
 @pytest.fixture(scope="module")
-def token(boo):
-    yield boo
+def token(wftm):
+    yield wftm
 
 
 @pytest.fixture(scope="module")
 def whale(accounts):
     # Update this with a large holder of your want token (the largest EOA holder of LP)
     whale = accounts.at(
-        "0x95478C4F7D22D1048F46100001c2C69D2BA57380", force=True)
+        "0x2A651563C9d3Af67aE0388a5c8F89b867038089e", force=True)
     yield whale
 
 

@@ -10,6 +10,12 @@ import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.
 import {SafeERC20, SafeMath, IERC20, Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
+struct route {
+    address from;
+    address to;
+    bool stable;
+}
+
 interface ISolidlyRouter {
     function addLiquidity(
         address,
@@ -30,7 +36,7 @@ interface ISolidlyRouter {
         );
 
     function getAmountsOut(uint256 amountIn, route[] memory routes)
-        public
+        external
         view
         returns (uint256[] memory amounts);
 
@@ -100,7 +106,7 @@ contract Strategy is BaseStrategy {
     IERC20 internal constant wftm =
         IERC20(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
     IAnyWFTM internal constant anyWFTM =
-        IXboo(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
+        IAnyWFTM(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
 
     IERC20 internal constant sex =
         IERC20(0xD31Fcd1f7Ba190dBc75354046F6024A9b86014d7);
@@ -279,12 +285,6 @@ contract Strategy is BaseStrategy {
         forceHarvestTriggerOnce = false;
     }
 
-    struct route {
-        address from;
-        address to;
-        bool stable;
-    }
-
     function adjustPosition(uint256 _debtOutstanding) internal override {
         if (emergencyExit) {
             return;
@@ -295,13 +295,22 @@ contract Strategy is BaseStrategy {
         // dont bother for less than 0.1 wftm
         if (toInvest > 1e17) {
             //because it is a stable pool, lets check slippage by doing a trade against it. if we can swap 1 wftm for less than slippage we gucci
-            route ftmToAny = route(wftm, anyWFTM, true);
-            route anyToWftm = route(anyWFTM, wftm, true);
+            route memory ftmToAny = route(
+                address(wftm),
+                address(anyWFTM),
+                true
+            );
+            route memory anyToWftm = route(
+                address(anyWFTM),
+                address(wftm),
+                true
+            );
 
             uint256 inAmount = 1e18;
 
             //ftm to any
-            route[1] routes = [ftmToAny];
+            route[] memory routes = new route[](1);
+            routes[0] = ftmToAny;
             uint256 amountOut = ISolidlyRouter(solidlyRouter).getAmountsOut(
                 inAmount,
                 routes
@@ -378,7 +387,7 @@ contract Strategy is BaseStrategy {
         );
 
         //1 lp token is this amoubt of boo
-        amountWftmPerLp = amountWftm.add(amountAnyWftm);
+        uint256 amountWftmPerLp = amountWftm.add(amountAnyWftm);
 
         uint256 lpTokensWeNeed = amountOfWftmWeWant.mul(1e18).div(
             amountWftmPerLp
@@ -430,7 +439,7 @@ contract Strategy is BaseStrategy {
                 solidlyRouter
             ).removeLiquidity(
                     address(wftm),
-                    address(anyWftm),
+                    address(anyWFTM),
                     true,
                     Math.min(lpTokensNeeded, balanceOfLpTokens),
                     0,
@@ -461,7 +470,7 @@ contract Strategy is BaseStrategy {
         lpDepositer.withdraw(lpToken, balanceOfLPStaked());
         ISolidlyRouter(solidlyRouter).removeLiquidity(
             address(wftm),
-            address(anyWftm),
+            address(anyWFTM),
             true,
             IERC20(lpToken).balanceOf(address(this)),
             0,
