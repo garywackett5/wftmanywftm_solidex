@@ -62,7 +62,7 @@ def wftm():
 
 
 @pytest.fixture(scope="module")
-def anyWftm():
+def anyWFTM():
     yield Contract("0x6362496Bef53458b20548a35A2101214Ee2BE3e0")
 
 

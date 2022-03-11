@@ -333,41 +333,45 @@ contract Strategy is BaseStrategy {
                 return;
             }
 
-            uint256 wftmBal = balanceOfWant();
             uint256 anyWftmBal = balanceOfAnyWftm();
+            if (anyWftmBal > 1e7) {
+                //lazy approach. thank you cheap fantom. lets withdraw
+                anyWFTM.withdraw();
+            }
 
-            if (wftmBal > anyWftmBal) {
-                uint256 diff = (wftmBal - anyWftmBal).div(2);
+            //now we get the ratio we need of each token in the lp. this determines how many we need of each
+            uint256 wftmB = wftm.balanceOf(lpToken);
+            uint256 anyWftmB = anyWFTM.balanceOf(lpToken);
 
-                if (diff > 1e7) {
-                    //we want to mint some anyWftm
-                    anyWFTM.deposit(diff);
-                }
-            } else {
-                uint256 diff = (anyWftmBal - wftmBal).div(2);
+            uint256 wftmBal = balanceOfWant();
+            uint256 anyWeNeed = wftmBal.mul(anyWftmB).div(wftmB.add(anyWftmB));
 
-                if (diff > 1e7) {
-                    //we want to mint some anyWftm
-                    anyWFTM.withdraw(diff);
-                }
+            if (anyWeNeed > 1e7) {
+                //we want to mint some anyWftm
+                anyWFTM.deposit(anyWeNeed);
             }
 
             wftmBal = balanceOfWant();
             anyWftmBal = balanceOfAnyWftm();
 
-            // deposit into lp
-            ISolidlyRouter(solidlyRouter).addLiquidity(
-                address(wftm),
-                address(anyWFTM),
-                true,
-                wftmBal,
-                anyWftmBal,
-                0,
-                0,
-                address(this),
-                2**256 - 1
-            );
+            if (anyWftmBal > 0 && wftmBal > 0) {
+                // deposit into lp
+                ISolidlyRouter(solidlyRouter).addLiquidity(
+                    address(wftm),
+                    address(anyWFTM),
+                    true,
+                    wftmBal,
+                    anyWftmBal,
+                    0,
+                    0,
+                    address(this),
+                    2**256 - 1
+                );
+            }
+        }
+        uint256 lpBalance = IERC20(lpToken).balanceOf(address(this));
 
+        if (lpBalance > 0) {
             //deposit to lp depositer
             lpDepositer.deposit(
                 lpToken,
