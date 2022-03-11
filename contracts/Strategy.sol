@@ -29,6 +29,11 @@ interface ISolidlyRouter {
             uint256 liquidity
         );
 
+    function getAmountsOut(uint256 amountIn, route[] memory routes)
+        public
+        view
+        returns (uint256[] memory amounts);
+
     function removeLiquidity(
         address tokenA,
         address tokenB,
@@ -49,14 +54,14 @@ interface ISolidlyRouter {
 }
 
 // boo:xboo ratios, enter = "Locks Boo and mints xBoo", leave = "Unlocks the staked + gained Boo, and burns xBoo"
-interface IXboo is IERC20 {
-    function xBOOForBOO(uint256) external view returns (uint256);
+interface IAnyWFTM is IERC20 {
+    function deposit(uint256) external returns (uint256);
 
-    function BOOForxBOO(uint256) external view returns (uint256);
+    function withdraw(uint256) external returns (uint256);
 
-    function enter(uint256) external;
+    function withdraw() external returns (uint256);
 
-    function leave(uint256) external;
+    function deposit() external returns (uint256);
 }
 
 interface ITradeFactory {
@@ -92,21 +97,23 @@ contract Strategy is BaseStrategy {
     address public tradeFactory =
         address(0xD3f89C21719Ec5961a3E6B0f9bBf9F9b4180E9e9);
 
-    IERC20 internal constant boo =
-        IERC20(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE);
-    IXboo internal constant xboo =
-        IXboo(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598);
+    IERC20 internal constant wftm =
+        IERC20(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
+    IAnyWFTM internal constant anyWFTM =
+        IXboo(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
 
     IERC20 internal constant sex =
         IERC20(0xD31Fcd1f7Ba190dBc75354046F6024A9b86014d7);
     IERC20 internal constant solid =
         IERC20(0x888EF71766ca594DED1F0FA3AE64eD2941740A20);
 
-    uint256 public lpSlippage = 995; //0.5% slippage allowance
+    uint256 public lpSlippage = 9995; //0.05% slippage allowance
+
+    uint256 immutable DENOMINATOR = 10_000;
 
     string internal stratName; // we use this for our strategy's name on cloning
     address public lpToken =
-        address(0x5804F6C40f44cF7593F73cf3aa16F7037213A623);
+        address(0x9aC7664060a3e388CEB157C5a0B6064BeFFAb9f2);
     ILpDepositer public lpDepositer =
         ILpDepositer(0x26E1A0d851CF28E697870e1b7F053B605C8b060F);
 
@@ -119,6 +126,7 @@ contract Strategy is BaseStrategy {
         public
         BaseStrategy(_vault)
     {
+        require(vault.token() == address(wftm));
         _initializeStrat(_name);
     }
 
@@ -141,9 +149,9 @@ contract Strategy is BaseStrategy {
         // add approvals on all tokens
         IERC20(lpToken).approve(address(lpDepositer), type(uint256).max);
         IERC20(lpToken).approve(address(solidlyRouter), type(uint256).max);
-        xboo.approve(address(solidlyRouter), type(uint256).max);
-        boo.approve(address(xboo), type(uint256).max);
-        boo.approve(address(solidlyRouter), type(uint256).max);
+        anyWFTM.approve(address(solidlyRouter), type(uint256).max);
+        wftm.approve(address(anyWFTM), type(uint256).max);
+        wftm.approve(address(solidlyRouter), type(uint256).max);
     }
 
     /* ========== VIEWS ========== */
@@ -157,12 +165,8 @@ contract Strategy is BaseStrategy {
         return want.balanceOf(address(this));
     }
 
-    function balanceOfXbooInWant(uint256 xbooAmount)
-        public
-        view
-        returns (uint256)
-    {
-        return xboo.xBOOForBOO(xbooAmount);
+    function balanceOfAnyWftm() public view returns (uint256) {
+        return anyWFTM.balanceOf(address(this));
     }
 
     function balanceOfLPStaked() public view returns (uint256) {
@@ -172,32 +176,31 @@ contract Strategy is BaseStrategy {
     function balanceOfConstituents(uint256 liquidity)
         public
         view
-        returns (uint256 amountBoo, uint256 amountXBoo)
+        returns (uint256 amountWftm, uint256 amountAnyWftm)
     {
-        (amountBoo, amountXBoo) = ISolidlyRouter(solidlyRouter)
+        (amountWftm, amountAnyWftm) = ISolidlyRouter(solidlyRouter)
             .quoteRemoveLiquidity(
-                address(boo),
-                address(xboo),
-                false,
+                address(wftm),
+                address(anyWFTM),
+                true, //stable pool
                 liquidity
             );
     }
 
+    //wftm and anywftm are interchangeable 1-1. so we need our balance of each. added to whatever we can withdraw from lps
     function estimatedTotalAssets() public view override returns (uint256) {
         uint256 lpTokens = balanceOfLPStaked().add(
             IERC20(lpToken).balanceOf(address(this))
         );
 
-        (uint256 amountBoo, uint256 amountXBoo) = balanceOfConstituents(
+        (uint256 amountWftm, uint256 amountAnyWftm) = balanceOfConstituents(
             lpTokens
         );
 
-        uint256 balanceOfxBooinBoo = balanceOfXbooInWant(
-            amountXBoo.add(xboo.balanceOf(address(this)))
-        );
-
-        // look at our staked tokens and any free tokens sitting in the strategy
-        return balanceOfxBooinBoo.add(balanceOfWant()).add(amountBoo);
+        return
+            amountAnyWftm.add(balanceOfAnyWftm()).add(balanceOfWant()).add(
+                amountWftm
+            );
     }
 
     function _setUpTradeFactory() internal {
@@ -276,6 +279,12 @@ contract Strategy is BaseStrategy {
         forceHarvestTriggerOnce = false;
     }
 
+    struct route {
+        address from;
+        address to;
+        bool stable;
+    }
+
     function adjustPosition(uint256 _debtOutstanding) internal override {
         if (emergencyExit) {
             return;
@@ -283,44 +292,67 @@ contract Strategy is BaseStrategy {
         // send all of our want tokens to be deposited
         uint256 toInvest = balanceOfWant();
         // stake only if we have something to stake
-        // dont bother for less than 0.1 boo
+        // dont bother for less than 0.1 wftm
         if (toInvest > 1e17) {
-            uint256 booB = boo.balanceOf(lpToken);
-            uint256 xbooB = xboo.balanceOf(lpToken);
+            //because it is a stable pool, lets check slippage by doing a trade against it. if we can swap 1 wftm for less than slippage we gucci
+            route ftmToAny = route(wftm, anyWFTM, true);
+            route anyToWftm = route(anyWFTM, wftm, true);
 
-            //ratio we need of boo to xboo to lp
-            uint256 ratio_lp = booB.mul(1e18).div(xbooB);
+            uint256 inAmount = 1e18;
 
-            //ratio boo to xboo in xBoo
-            uint256 ratio_xboo = xboo.xBOOForBOO(1e18);
-
+            //ftm to any
+            route[1] routes = [ftmToAny];
+            uint256 amountOut = ISolidlyRouter(solidlyRouter).getAmountsOut(
+                inAmount,
+                routes
+            )[1];
             //allow 0.5% slippage by default
-            if (ratio_lp < ratio_xboo.mul(lpSlippage).div(1000)) {
+            if (amountOut < inAmount.mul(lpSlippage).div(DENOMINATOR)) {
                 //dont do anything because we would be lping into the lp at a bad price
                 return;
             }
 
-            if (ratio_xboo < ratio_lp.mul(lpSlippage).div(1000)) {
+            //any to ftm
+            routes[0] = anyToWftm;
+            amountOut = ISolidlyRouter(solidlyRouter).getAmountsOut(
+                inAmount,
+                routes
+            )[1];
+
+            if (amountOut < inAmount.mul(lpSlippage).div(DENOMINATOR)) {
                 //dont do anything because we would be lping into the lp at a bad price
                 return;
             }
-            //amount to swap is:
-            // B0 * Rxboo / (Rlp + Rxboo)
-            uint256 numerator = toInvest.mul(ratio_xboo);
-            uint256 denom = ratio_xboo.add(ratio_lp);
 
-            uint256 newInvest = (numerator.div(denom)).sub(1e6); // remove a bit incase of rounding error
+            uint256 wftmBal = balanceOfWant();
+            uint256 anyWftmBal = balanceOfAnyWftm();
 
-            // deposit our boo into xboo
-            xboo.enter(newInvest);
+            if (wftmBal > anyWftmBal) {
+                uint256 diff = wftmBal - anyWftmBal;
+
+                if (diff > 1e7) {
+                    //we want to mint some anyWftm
+                    anyWFTM.deposit(diff);
+                }
+            } else {
+                uint256 diff = anyWftmBal - wftmBal;
+
+                if (diff > 1e7) {
+                    //we want to mint some anyWftm
+                    anyWFTM.withdraw(diff);
+                }
+            }
+
+            wftmBal = balanceOfWant();
+            anyWftmBal = balanceOfAnyWftm();
 
             // deposit into lp
             ISolidlyRouter(solidlyRouter).addLiquidity(
-                address(boo),
-                address(xboo),
-                false,
-                boo.balanceOf(address(this)),
-                xboo.balanceOf(address(this)),
+                address(wftm),
+                address(anyWFTM),
+                true,
+                wftmBal,
+                anyWftmBal,
                 0,
                 0,
                 address(this),
@@ -336,17 +368,20 @@ contract Strategy is BaseStrategy {
     }
 
     //returns lp tokens needed to get that amount of boo
-    function booToLpTokens(uint256 amountOfBooWeWant) public returns (uint256) {
-        //amount of boo and xboo for 1 lp token
-        (uint256 amountBooPerLp, uint256 amountXBoo) = balanceOfConstituents(
+    function wftmToLpTokens(uint256 amountOfWftmWeWant)
+        public
+        returns (uint256)
+    {
+        //amount of wftm and anyWftm for 1 lp token
+        (uint256 amountWftm, uint256 amountAnyWftm) = balanceOfConstituents(
             1e18
         );
 
         //1 lp token is this amoubt of boo
-        amountBooPerLp = amountBooPerLp.add(xboo.xBOOForBOO(amountXBoo));
+        amountWftmPerLp = amountWftm.add(amountAnyWftm);
 
-        uint256 lpTokensWeNeed = amountOfBooWeWant.mul(1e18).div(
-            amountBooPerLp
+        uint256 lpTokensWeNeed = amountOfWftmWeWant.mul(1e18).div(
+            amountWftmPerLp
         );
 
         return lpTokensWeNeed;
@@ -357,18 +392,21 @@ contract Strategy is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        //if we have loose xboo. liquidated it
-        xboo.leave(xboo.balanceOf(address(this)));
+        //if we have loose anyWftm. liquidated it
+        uint256 anyWftmBal = balanceOfAnyWftm();
+        if (anyWftmBal > 1e7) {
+            anyWFTM.withdraw();
+        }
 
-        uint256 balanceOfBoo = want.balanceOf(address(this));
+        uint256 balanceOfWftm = balanceOfWant();
 
         // if we need more boo than is already loose in the contract
-        if (balanceOfBoo < _amountNeeded) {
-            // boo needed beyond any boo that is already loose in the contract
-            uint256 amountToFree = _amountNeeded.sub(balanceOfBoo);
+        if (balanceOfWftm < _amountNeeded) {
+            // wftm needed beyond any boo that is already loose in the contract
+            uint256 amountToFree = _amountNeeded.sub(balanceOfWftm);
 
             // converts this amount into lpTokens
-            uint256 lpTokensNeeded = booToLpTokens(amountToFree);
+            uint256 lpTokensNeeded = wftmToLpTokens(amountToFree);
 
             uint256 balanceOfLpTokens = IERC20(lpToken).balanceOf(
                 address(this)
@@ -388,12 +426,12 @@ contract Strategy is BaseStrategy {
                 balanceOfLpTokens = IERC20(lpToken).balanceOf(address(this));
             }
 
-            (uint256 amountBoo, uint256 amountxBoo) = ISolidlyRouter(
+            (uint256 amountWftm, uint256 amountAnyWftm) = ISolidlyRouter(
                 solidlyRouter
             ).removeLiquidity(
-                    address(boo),
-                    address(xboo),
-                    false,
+                    address(wftm),
+                    address(anyWftm),
+                    true,
                     Math.min(lpTokensNeeded, balanceOfLpTokens),
                     0,
                     0,
@@ -401,7 +439,10 @@ contract Strategy is BaseStrategy {
                     type(uint256).max
                 );
 
-            xboo.leave(xboo.balanceOf(address(this)));
+            anyWftmBal = balanceOfAnyWftm();
+            if (anyWftmBal > 1e7) {
+                anyWFTM.withdraw();
+            }
 
             _liquidatedAmount = Math.min(
                 want.balanceOf(address(this)),
@@ -419,16 +460,16 @@ contract Strategy is BaseStrategy {
     function liquidateAllPositions() internal override returns (uint256) {
         lpDepositer.withdraw(lpToken, balanceOfLPStaked());
         ISolidlyRouter(solidlyRouter).removeLiquidity(
-            address(boo),
-            address(xboo),
-            false,
+            address(wftm),
+            address(anyWftm),
+            true,
             IERC20(lpToken).balanceOf(address(this)),
             0,
             0,
             address(this),
             type(uint256).max
         );
-        xboo.leave(xboo.balanceOf(address(this)));
+        anyWFTM.withdraw();
 
         return balanceOfWant();
     }
@@ -444,11 +485,11 @@ contract Strategy is BaseStrategy {
             IERC20(lpToken).safeTransfer(_newStrategy, lpBalance);
         }
 
-        uint256 xbooBalance = xboo.balanceOf(address(this));
+        uint256 anyWftmBalance = balanceOfAnyWftm();
 
-        if (xbooBalance > 0) {
+        if (anyWftmBalance > 0) {
             // send our total balance of xboo to the new strategy
-            xboo.transfer(_newStrategy, xbooBalance);
+            anyWFTM.transfer(_newStrategy, anyWftmBalance);
         }
     }
 
@@ -562,9 +603,9 @@ contract Strategy is BaseStrategy {
     }
 
     function _setLpSlippage(uint256 _slippage, bool _force) internal {
-        require(_slippage <= 10_000, "higher than max");
+        require(_slippage <= DENOMINATOR, "higher than max");
         if (!_force) {
-            require(_slippage >= 990, "higher than 1pc slippage set");
+            require(_slippage >= 9900, "higher than 1pc slippage set");
         }
         lpSlippage = _slippage;
     }
