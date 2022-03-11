@@ -21,7 +21,7 @@ def test_odds_and_ends(
     xboo,
 ):
 
-    ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
+    # deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -117,7 +117,7 @@ def test_odds_and_ends_2(
     xboo,
 ):
 
-    ## deposit to the vault after approving. turn off health check since we're doing weird shit
+    # deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -163,7 +163,7 @@ def test_odds_and_ends_migration(
     pid,
 ):
 
-    ## deposit to the vault after approving
+    # deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
@@ -233,7 +233,7 @@ def test_odds_and_ends_liquidatePosition(
     strategist_ms,
     amount,
 ):
-    ## deposit to the vault after approving
+    # deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
@@ -246,7 +246,7 @@ def test_odds_and_ends_liquidatePosition(
     chain.sleep(1)
     old_assets = vault.totalAssets()
     assert old_assets > 0
-    assert token.balanceOf(strategy) == 0
+    assert token.balanceOf(strategy) < 1e12
     assert strategy.estimatedTotalAssets() > 0
     print("\nStarting Assets: ", old_assets / (10 ** token.decimals()))
 
@@ -261,14 +261,16 @@ def test_odds_and_ends_liquidatePosition(
     chain.sleep(1)
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
-    assert new_assets >= old_assets or math.isclose(new_assets, old_assets, abs_tol=5)
+    assert new_assets >= old_assets or math.isclose(
+        new_assets, old_assets, abs_tol=5)
     print("\nAssets after 1 day: ", new_assets / (10 ** token.decimals()))
 
     # Display estimated APR
     print(
         "\nEstimated APR: ",
         "{:.2%}".format(
-            ((new_assets - old_assets) * (365)) / (strategy.estimatedTotalAssets())
+            ((new_assets - old_assets) * (365)) /
+            (strategy.estimatedTotalAssets())
         ),
     )
 
@@ -299,7 +301,7 @@ def test_odds_and_ends_rekt(
     amount,
     xboo,
 ):
-    ## deposit to the vault after approving. turn off health check since we're doing weird shit
+    # deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -316,7 +318,8 @@ def test_odds_and_ends_rekt(
     xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
     assert vault.strategies(strategy)[2] == 10000
-    print("Strategy Total Debt, this should be >0:", vault.strategies(strategy)[6])
+    print("Strategy Total Debt, this should be >0:",
+          vault.strategies(strategy)[6])
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
 
     strategy.setDoHealthCheck(False, {"from": gov})
@@ -342,7 +345,7 @@ def test_odds_and_ends_liquidate_rekt(
     amount,
     xboo,
 ):
-    ## deposit to the vault after approving. turn off health check since we're doing weird shit
+    # deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -405,7 +408,7 @@ def test_odds_and_ends_inactive_strat(
     strategist_ms,
     amount,
 ):
-    ## deposit to the vault after approving
+    # deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
@@ -413,7 +416,7 @@ def test_odds_and_ends_inactive_strat(
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    ## move our funds out of the strategy
+    # move our funds out of the strategy
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     # sleep for a day since univ3 is weird
     chain.sleep(86400)
