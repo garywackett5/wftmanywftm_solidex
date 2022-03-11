@@ -12,7 +12,7 @@ def isolation(fn_isolation):
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "boo_Xboo_veLp_Solidex"
+    strategy_name = "wftm_anyftm_solidex"
     yield strategy_name
 
 

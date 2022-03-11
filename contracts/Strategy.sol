@@ -258,7 +258,11 @@ contract Strategy is BaseStrategy {
             //withdraw with loss
             if (realiseLosses) {
                 _loss = debt.sub(assets);
-                _debtPayment = _debtOutstanding.sub(_loss);
+                if (_debtOutstanding > _loss) {
+                    _debtPayment = _debtOutstanding.sub(_loss);
+                } else {
+                    _debtPayment = 0;
+                }
 
                 amountToFree = _debtPayment;
             }
@@ -315,7 +319,7 @@ contract Strategy is BaseStrategy {
                 inAmount,
                 routes
             )[1];
-            //allow 0.5% slippage by default
+            //allow 0.05% slippage by default
             if (amountOut < inAmount.mul(lpSlippage).div(DENOMINATOR)) {
                 //dont do anything because we would be lping into the lp at a bad price
                 return;
@@ -373,10 +377,7 @@ contract Strategy is BaseStrategy {
 
         if (lpBalance > 0) {
             //deposit to lp depositer
-            lpDepositer.deposit(
-                lpToken,
-                IERC20(lpToken).balanceOf(address(this))
-            );
+            lpDepositer.deposit(lpToken, lpBalance);
         }
     }
 
@@ -431,26 +432,31 @@ contract Strategy is BaseStrategy {
                 );
 
                 uint256 staked = balanceOfLPStaked();
-                lpDepositer.withdraw(
-                    lpToken,
-                    Math.min(toWithdrawfromSolidex, staked)
-                );
+                if (staked > 0) {
+                    lpDepositer.withdraw(
+                        lpToken,
+                        Math.min(toWithdrawfromSolidex, staked)
+                    );
+                }
 
                 balanceOfLpTokens = IERC20(lpToken).balanceOf(address(this));
             }
 
-            (uint256 amountWftm, uint256 amountAnyWftm) = ISolidlyRouter(
-                solidlyRouter
-            ).removeLiquidity(
-                    address(wftm),
-                    address(anyWFTM),
-                    true,
-                    Math.min(lpTokensNeeded, balanceOfLpTokens),
-                    0,
-                    0,
-                    address(this),
-                    type(uint256).max
-                );
+            uint256 amountWftm;
+            uint256 amountAnyWftm;
+            if (balanceOfLpTokens > 0) {
+                (amountWftm, amountAnyWftm) = ISolidlyRouter(solidlyRouter)
+                    .removeLiquidity(
+                        address(wftm),
+                        address(anyWFTM),
+                        true,
+                        Math.min(lpTokensNeeded, balanceOfLpTokens),
+                        0,
+                        0,
+                        address(this),
+                        type(uint256).max
+                    );
+            }
 
             anyWftmBal = balanceOfAnyWftm();
             if (anyWftmBal > 1e7) {
@@ -471,25 +477,33 @@ contract Strategy is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        lpDepositer.withdraw(lpToken, balanceOfLPStaked());
-        ISolidlyRouter(solidlyRouter).removeLiquidity(
-            address(wftm),
-            address(anyWFTM),
-            true,
-            IERC20(lpToken).balanceOf(address(this)),
-            0,
-            0,
-            address(this),
-            type(uint256).max
-        );
-        anyWFTM.withdraw();
+        uint256 staked = balanceOfLPStaked();
+        if (staked > 0) {
+            lpDepositer.withdraw(lpToken, balanceOfLPStaked());
+            ISolidlyRouter(solidlyRouter).removeLiquidity(
+                address(wftm),
+                address(anyWFTM),
+                true,
+                IERC20(lpToken).balanceOf(address(this)),
+                0,
+                0,
+                address(this),
+                type(uint256).max
+            );
+        }
+        if (balanceOfAnyWftm() > 0) {
+            anyWFTM.withdraw();
+        }
 
         return balanceOfWant();
     }
 
     function prepareMigration(address _newStrategy) internal override {
         if (!depositerAvoid) {
-            lpDepositer.withdraw(lpToken, balanceOfLPStaked());
+            uint256 staked = balanceOfLPStaked();
+            if (staked > 0) {
+                lpDepositer.withdraw(lpToken, staked);
+            }
         }
 
         uint256 lpBalance = IERC20(lpToken).balanceOf(address(this));
