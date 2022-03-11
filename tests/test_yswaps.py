@@ -91,23 +91,28 @@ def test_yswap(
     asyncTradeExecutionDetails = [
         strategy, token_in, token_out, amount_in, 1]
 
-    # always start with optimisations. 5 is CallOnlyNoValue
     optimsations = [["uint8"], [5]]
     a = optimsations[0]
     b = optimsations[1]
 
-    calldata = token_in.approve.encode_input(spooky_router, amount_in)
+    # send all our tokens
+    calldata = token_in.approve.encode_input(solidex_router, amount_in)
     t = createTx(token_in, calldata)
     a = a + t[0]
     b = b + t[1]
 
-    path = [token_in.address, wftm]
-    calldata = spooky_router.swapExactTokensForTokens.encode_input(
+    step = [token_in.address, wftm, False]
+    path = [step]
+
+    expectedOut = solidex_router.getAmountsOut(amount_in, path)[1]
+
+    calldata = solidex_router.swapExactTokensForTokens.encode_input(
         amount_in, 0, path, receiver, 2 ** 256 - 1
     )
-    t = createTx(spooky_router, calldata)
+    t = createTx(solidex_router, calldata)
     a = a + t[0]
     b = b + t[1]
+
     transaction = encode_abi_packed(a, b)
 
     # min out must be at least 1 to ensure that the tx works correctly
