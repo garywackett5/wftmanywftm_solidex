@@ -104,7 +104,7 @@ contract Strategy is BaseStrategy {
         address(0xD3f89C21719Ec5961a3E6B0f9bBf9F9b4180E9e9);
 
     IERC20 internal constant wftm =
-        IERC20(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
+        IERC20(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
     IAnyWFTM internal constant anyWFTM =
         IAnyWFTM(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
 
@@ -337,14 +337,14 @@ contract Strategy is BaseStrategy {
             uint256 anyWftmBal = balanceOfAnyWftm();
 
             if (wftmBal > anyWftmBal) {
-                uint256 diff = wftmBal - anyWftmBal;
+                uint256 diff = (wftmBal - anyWftmBal).div(2);
 
                 if (diff > 1e7) {
                     //we want to mint some anyWftm
                     anyWFTM.deposit(diff);
                 }
             } else {
-                uint256 diff = anyWftmBal - wftmBal;
+                uint256 diff = (anyWftmBal - wftmBal).div(2);
 
                 if (diff > 1e7) {
                     //we want to mint some anyWftm
