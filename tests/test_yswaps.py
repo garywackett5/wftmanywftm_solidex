@@ -25,7 +25,7 @@ def test_yswap(
     interface,
     spooky_router,
     trade_factory,
-    sex,
+    oxd,
     solid,
     multicall_swapper,
     strategist_ms
@@ -126,9 +126,9 @@ def test_yswap(
 
     afterone = token_out.balanceOf(strategy)
     print(afterone/1e18)
-    # now do sex
+    # now do oxd
 
-    id = sex
+    id = oxd
 
     # wftmboopair = Contract(
     #     '0xEc7178F4C41f346b2721907F5cF7628E388A7a58')  # spookylp

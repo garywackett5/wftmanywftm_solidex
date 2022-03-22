@@ -35,7 +35,7 @@ def test_odds_and_ends(
     # send away all funds, will need to alter this based on strategy
     lpToken = interface.ERC20(strategy.lpToken())
     staked = strategy.balanceOfLPStaked()
-    strategy.manualWithdraw(lpToken, staked)
+    strategy.manualWithdraw(staked)
     to_send = lpToken.balanceOf(strategy)
     print("Balance of Vault", to_send)
     lpToken.transfer(gov, to_send, {"from": strategy})
@@ -135,7 +135,7 @@ def test_odds_and_ends_2(
     # send away all funds, will need to alter this based on strategy
     lpToken = interface.ERC20(strategy.lpToken())
     staked = strategy.balanceOfLPStaked()
-    strategy.manualWithdraw(lpToken, staked)
+    strategy.manualWithdraw(staked)
     to_send = lpToken.balanceOf(strategy)
     print("Balance of Vault", to_send)
     lpToken.transfer(gov, to_send, {"from": strategy})
@@ -324,7 +324,7 @@ def test_odds_and_ends_rekt(
     # send away all funds, will need to alter this based on strategy
     lpToken = interface.ERC20(strategy.lpToken())
     staked = strategy.balanceOfLPStaked()
-    strategy.manualWithdraw(lpToken, staked)
+    strategy.manualWithdraw(staked)
     to_send = lpToken.balanceOf(strategy)
     print("Balance of Vault", to_send)
     lpToken.transfer(gov, to_send, {"from": strategy})
@@ -370,7 +370,7 @@ def test_odds_and_ends_liquidate_rekt(
     # send away all funds, will need to alter this based on strategy
     lpToken = interface.ERC20(strategy.lpToken())
     staked = strategy.balanceOfLPStaked()
-    strategy.manualWithdraw(lpToken, staked)
+    strategy.manualWithdraw(staked)
     to_send = lpToken.balanceOf(strategy)
     print("Balance of Vault", to_send)
     lpToken.transfer(gov, to_send, {"from": strategy})

@@ -545,12 +545,14 @@ contract Strategy is BaseStrategy {
                     balanceOfLpTokens
                 );
 
+                // balance of oxlp staked in multiRewards
+                uint256 staked = balanceOfLPStaked();
+
                 if (staked > 0) {
-                    uint256 staked = balanceOfLPStaked();
                     // Withdraw oxLP from multiRewards
                     multiRewards.withdraw(Math.min(toWithdrawfromOxdao, staked));
-                    // need to change this staked
-                    uint256 oxLpBalance = oxPool.balanceOf(address(this);
+                    // balance of oxlp in oxPool
+                    uint256 oxLpBalance = oxPool.balanceOf(address(this));
                     // Redeem/burn oxPool LP for Solidly LP
                     oxPool.withdrawLp(Math.min(toWithdrawfromOxdao, oxLpBalance));
 
@@ -599,12 +601,16 @@ contract Strategy is BaseStrategy {
 
     // do we need to claim rewards ???
     function liquidateAllPositions() internal override returns (uint256) {
+        // balance of oxlp staked in multiRewards
         uint256 staked = balanceOfLPStaked();
+
         if (staked > 0) {
             // Withdraw oxLP from multiRewards
-            multiRewards.withdraw(balanceOfLPStaked());
+            multiRewards.withdraw(staked);
+            // balance of oxlp in oxPool
+            uint256 oxLpBalance = oxPool.balanceOf(address(this));
             // Redeem/burn oxPool LP for Solidly LP
-            oxPool.withdrawLp(balanceOfLPStaked());
+            oxPool.withdrawLp(oxLpBalance);
             
             // lpDepositer.withdraw(lpToken, balanceOfLPStaked());
 
@@ -628,12 +634,16 @@ contract Strategy is BaseStrategy {
 
     function prepareMigration(address _newStrategy) internal override {
         if (!depositerAvoid) {
+            // balance of oxlp staked in multiRewards
             uint256 staked = balanceOfLPStaked();
+
             if (staked > 0) {
                 // Withdraw oxLP from multiRewards
                 multiRewards.withdraw(staked);
+                // balance of oxlp in oxPool
+                uint256 oxLpBalance = oxPool.balanceOf(address(this));
                 // Redeem/burn oxPool LP for Solidly LP
-                oxPool.withdrawLp(staked);
+                oxPool.withdrawLp(oxLpBalance);
                 
                 // lpDepositer.withdraw(lpToken, staked);
             }
