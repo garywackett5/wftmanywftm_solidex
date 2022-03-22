@@ -12,7 +12,7 @@ def isolation(fn_isolation):
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "wftm_anyftm_solidex"
+    strategy_name = "wftm_anyftm_oxdao"
     yield strategy_name
 
 
@@ -27,8 +27,8 @@ def weth():
 
 
 @pytest.fixture(scope="module")
-def sex():
-    yield Contract("0xD31Fcd1f7Ba190dBc75354046F6024A9b86014d7")
+def oxd():
+    yield Contract("0xc5A9848b9d145965d821AaeC8fA32aaEE026492d")
 
 
 @pytest.fixture(scope="module")
@@ -67,8 +67,12 @@ def anyWFTM():
 
 
 @pytest.fixture(scope="module")
-def lpdepositer():
-    yield Contract("0x26E1A0d851CF28E697870e1b7F053B605C8b060F")
+def ox_pool():
+    yield Contract("0x6B64Ad957b352B3740DC6Ee48bfC3e02908b2b22")
+
+@pytest.fixture(scope="module")
+def multi_rewards():
+    yield Contract("0x2e21D83FF3e59468c5FED4d90cD4a03Eca07Ba1D")
 
 
 # Define relevant tokens and contracts in this section
@@ -95,7 +99,7 @@ def amount(token):  # use today's exchange rates to have similar $$ amounts
 # Only worry about changing things above this line, unless you want to make changes to the vault or strategy.
 # ----------------------------------------------------------------------- #
 
-
+# reward_token was set as oxdv1 - maybe because it's not used in the tests because of tradeFactory ???
 @pytest.fixture(scope="module")
 def reward_token(accounts):
     reward_token = Contract("0xc165d941481e68696f43EE6E99BFB2B23E0E3114")

@@ -13,7 +13,7 @@ def test_simple_harvest(
     strategy,
     chain,
     strategist_ms,
-    sex,
+    oxd,
     solid,
     amount,
     accounts,
@@ -49,7 +49,7 @@ def test_simple_harvest(
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
-    assert sex.balanceOf(strategy) > 0
+    assert oxd.balanceOf(strategy) > 0
     assert solid.balanceOf(strategy) > 0
     chain.sleep(1)
 

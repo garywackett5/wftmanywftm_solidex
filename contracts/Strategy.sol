@@ -484,6 +484,7 @@ contract Strategy is BaseStrategy {
                 );
             }
         }
+        uint256 lpBalance = IERC20(lpToken).balanceOf(address(this));
 
         if (lpBalance > 0) {
             // Transfer Solidly LP to ox pool to receive Ox pool LP receipt token
