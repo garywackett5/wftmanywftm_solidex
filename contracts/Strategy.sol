@@ -287,9 +287,10 @@ contract Strategy is BaseStrategy {
         return anyWFTM.balanceOf(address(this));
     }
 
-    // is oxPool.balanceOf always the same as multiRewards.balanceOf ???
+    // multiRewards.balanceOf works. oxPool.balanceOf doesn't.
     function balanceOfLPStaked() public view returns (uint256) {
-        return oxPool.balanceOf(address(this));
+        // return oxPool.balanceOf(address(this));
+        return multiRewards.balanceOf(address(this));
     }
 
     function balanceOfConstituents(uint256 liquidity)
@@ -544,12 +545,14 @@ contract Strategy is BaseStrategy {
                     balanceOfLpTokens
                 );
 
-                uint256 staked = balanceOfLPStaked();
                 if (staked > 0) {
+                    uint256 staked = balanceOfLPStaked();
                     // Withdraw oxLP from multiRewards
                     multiRewards.withdraw(Math.min(toWithdrawfromOxdao, staked));
+                    // need to change this staked
+                    uint256 oxLpBalance = oxPool.balanceOf(address(this);
                     // Redeem/burn oxPool LP for Solidly LP
-                    oxPool.withdrawLp(Math.min(toWithdrawfromOxdao, staked));
+                    oxPool.withdrawLp(Math.min(toWithdrawfromOxdao, oxLpBalance));
 
                     // lpDepositer.withdraw(
                     //     lpToken,
