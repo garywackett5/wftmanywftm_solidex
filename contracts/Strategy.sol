@@ -278,19 +278,29 @@ contract Strategy is BaseStrategy {
         return stratName;
     }
 
-    // balance of boo in strat - should be zero most of the time
+    // balance of wftm in strat - should be zero most of the time
     function balanceOfWant() public view returns (uint256) {
         return want.balanceOf(address(this));
     }
 
+    // balance of anyftm in strat - should be zero most of the time
     function balanceOfAnyWftm() public view returns (uint256) {
         return anyWFTM.balanceOf(address(this));
     }
 
-    // multiRewards.balanceOf works. oxPool.balanceOf doesn't.
-    function balanceOfLPStaked() public view returns (uint256) {
-        // return oxPool.balanceOf(address(this));
+    // view our balance of unstaked oxLP tokens - should be zero most of the time
+    function balanceOfOxPool() public view returns (uint256) {
+        return oxPool.balanceOf(address(this));
+    }
+
+    // view our balance of staked oxLP tokens
+    function balanceOfMultiRewards() public view returns (uint256) {
         return multiRewards.balanceOf(address(this));
+    }
+
+    // view our balance of unstaked and staked oxLP tokens
+    function balanceOfLPStaked() public view returns (uint256) {
+        return balanceOfOxPool().add(balanceOfMultiRewards());
     }
 
     function balanceOfConstituents(uint256 liquidity)
@@ -669,10 +679,28 @@ contract Strategy is BaseStrategy {
     {
         // Withdraw oxLP from multiRewards
         multiRewards.withdraw(amount);
+        // balance of oxlp in oxPool
+        uint256 oxLpBalance = oxPool.balanceOf(address(this));
         // Redeem/burn oxPool LP for Solidly LP
-        oxPool.withdrawLp(amount);
+        oxPool.withdrawLp(Math.min(amount, oxLpBalance));
         
         // lpDepositer.withdraw(lp, amount);
+    }
+
+    function manualWithdrawPartOne(uint256 amount)
+        external
+        onlyEmergencyAuthorized
+    {
+        // Withdraw oxLP from multiRewards
+        multiRewards.withdraw(amount);
+    }
+
+    function manualWithdrawPartTwo(uint256 amount)
+        external
+        onlyEmergencyAuthorized
+    {
+        // Redeem/burn oxPool LP for Solidly LP
+        oxPool.withdrawLp(amount);
     }
 
     function protectedTokens()
