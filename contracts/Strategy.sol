@@ -499,7 +499,7 @@ contract Strategy is BaseStrategy {
 
         if (lpBalance > 0) {
             // Transfer Solidly LP to ox pool to receive Ox pool LP receipt token
-            oxPool.depositLp(solidLp.balanceOf(address(this)));
+            oxPool.depositLp(lpBalance);
             // Stake oxLP in multirewards
             multiRewards.stake(oxLp.balanceOf(address(this)));
         }
