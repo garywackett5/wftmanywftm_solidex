@@ -21,8 +21,6 @@ interface IOxPool {
 
     function solidPoolAddress() external view returns (address);
 
-    // function solidPoolInfo() external view returns (ISolidlyLens.Pool memory);
-
     function depositLpAndStake(uint256) external;
 
     function depositLp(uint256) external;
@@ -165,19 +163,6 @@ interface ITradeFactory {
     function enable(address, address) external;
 }
 
-// interface ILpDepositer {
-//     function deposit(address pool, uint256 _amount) external;
-
-//     function withdraw(address pool, uint256 _amount) external; // use amount = 0 for harvesting rewards
-
-//     function userBalances(address user, address pool)
-//         external
-//         view
-//         returns (uint256);
-
-//     function getReward(address[] memory lps) external;
-// }
-
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
@@ -211,8 +196,6 @@ contract Strategy is BaseStrategy {
     IAnyWFTM internal constant anyWFTM =
         IAnyWFTM(0x6362496Bef53458b20548a35A2101214Ee2BE3e0);
 
-    // IERC20 internal constant sex =
-    //     IERC20(0xD31Fcd1f7Ba190dBc75354046F6024A9b86014d7);
     IERC20 internal constant solid =
         IERC20(0x888EF71766ca594DED1F0FA3AE64eD2941740A20);
     IERC20 internal constant oxd =
@@ -225,8 +208,6 @@ contract Strategy is BaseStrategy {
     string internal stratName; // we use this for our strategy's name on cloning
     address public lpToken =
         address(0x9aC7664060a3e388CEB157C5a0B6064BeFFAb9f2);
-    // ILpDepositer public lpDepositer =
-    //     ILpDepositer(0x26E1A0d851CF28E697870e1b7F053B605C8b060F);
     IOxPool public oxPool =
         IOxPool(0x6B64Ad957b352B3740DC6Ee48bfC3e02908b2b22);
     IMultiRewards public multiRewards =
@@ -262,7 +243,6 @@ contract Strategy is BaseStrategy {
         minHarvestCredit = type(uint256).max;
 
         // add approvals on all tokens
-        // IERC20(lpToken).approve(address(lpDepositer), type(uint256).max);
         IERC20(lpToken).approve(address(solidlyRouter), type(uint256).max);
         anyWFTM.approve(address(solidlyRouter), type(uint256).max);
         wftm.approve(address(anyWFTM), type(uint256).max);
@@ -561,15 +541,10 @@ contract Strategy is BaseStrategy {
                 if (staked > 0) {
                     // Withdraw oxLP from multiRewards
                     multiRewards.withdraw(Math.min(toWithdrawfromOxdao, staked));
-                    // balance of oxlp in oxPool
+                    // our balance of oxlp in oxPool
                     uint256 oxLpBalance = oxPool.balanceOf(address(this));
                     // Redeem/burn oxPool LP for Solidly LP
                     oxPool.withdrawLp(Math.min(toWithdrawfromOxdao, oxLpBalance));
-
-                    // lpDepositer.withdraw(
-                    //     lpToken,
-                    //     Math.min(toWithdrawfromOxdao, staked)
-                    // );
                 }
 
                 balanceOfLpTokens = IERC20(lpToken).balanceOf(address(this));
@@ -609,20 +584,17 @@ contract Strategy is BaseStrategy {
         }
     }
 
-    // do we need to claim rewards ???
     function liquidateAllPositions() internal override returns (uint256) {
-        // balance of oxlp staked in multiRewards
+        // our balance of oxlp staked in multiRewards
         uint256 staked = balanceOfLPStaked();
 
         if (staked > 0) {
             // Withdraw oxLP from multiRewards
             multiRewards.withdraw(staked);
-            // balance of oxlp in oxPool
+            // our balance of oxlp in oxPool
             uint256 oxLpBalance = oxPool.balanceOf(address(this));
             // Redeem/burn oxPool LP for Solidly LP
             oxPool.withdrawLp(oxLpBalance);
-            
-            // lpDepositer.withdraw(lpToken, balanceOfLPStaked());
 
             ISolidlyRouter(solidlyRouter).removeLiquidity(
                 address(wftm),
@@ -644,18 +616,16 @@ contract Strategy is BaseStrategy {
 
     function prepareMigration(address _newStrategy) internal override {
         if (!depositerAvoid) {
-            // balance of oxlp staked in multiRewards
+            // our balance of oxlp staked in multiRewards
             uint256 staked = balanceOfLPStaked();
 
             if (staked > 0) {
                 // Withdraw oxLP from multiRewards
                 multiRewards.withdraw(staked);
-                // balance of oxlp in oxPool
+                // our balance of oxlp in oxPool
                 uint256 oxLpBalance = oxPool.balanceOf(address(this));
                 // Redeem/burn oxPool LP for Solidly LP
                 oxPool.withdrawLp(oxLpBalance);
-                
-                // lpDepositer.withdraw(lpToken, staked);
             }
         }
 
@@ -673,33 +643,43 @@ contract Strategy is BaseStrategy {
         }
     }
 
-    function manualWithdraw(uint256 amount)
+    // Withdraw all oxLP (and rewards) from multiRewards and Redeem/burn oxPool LP for Solidly LP
+    function manualCompleteExit()
         external
         onlyEmergencyAuthorized
     {
-        // Withdraw oxLP from multiRewards
-        multiRewards.withdraw(amount);
-        // balance of oxlp in oxPool
+        // Withdraw all oxLP (and rewards) from multiRewards
+        multiRewards.exit();
+        // our balance of oxlp in oxPool
         uint256 oxLpBalance = oxPool.balanceOf(address(this));
         // Redeem/burn oxPool LP for Solidly LP
-        oxPool.withdrawLp(Math.min(amount, oxLpBalance));
-        
-        // lpDepositer.withdraw(lp, amount);
+        oxPool.withdrawLp(oxLpBalance);
     }
-
-    function manualWithdrawPartOne(uint256 amount)
+    
+    // Withdraw oxLP from multiRewards and Redeem/burn oxPool LP for Solidly LP
+    function manualCompleteExit(uint256 amount)
         external
         onlyEmergencyAuthorized
     {
-        // Withdraw oxLP from multiRewards
+        manualUnstake(amount);
+        // our balance of oxlp in oxPool
+        uint256 oxLpBalance = oxPool.balanceOf(address(this));
+        manualWithdrawLP(Math.min(amount, oxLpBalance));
+    }
+
+    // Withdraw oxLP from multiRewards
+    function manualUnstake(uint256 amount)
+        external
+        onlyEmergencyAuthorized
+    {
         multiRewards.withdraw(amount);
     }
 
-    function manualWithdrawPartTwo(uint256 amount)
+    // Redeem/burn oxPool LP for Solidly LP
+    function manualWithdrawLP(uint256 amount)
         external
         onlyEmergencyAuthorized
     {
-        // Redeem/burn oxPool LP for Solidly LP
         oxPool.withdrawLp(amount);
     }
 
